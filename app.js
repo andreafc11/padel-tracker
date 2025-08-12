@@ -1,3 +1,5 @@
+import { saveMatchToFirebase } from './firebase.js';
+
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -109,7 +111,8 @@ function finishMatch() {
         id: Date.now()
     };
     
-    saveMatchToHistory(matchResult);
+    saveMatchToHistory(matchResult);  // save to localStorage once
+    
     if (winner) updatePlayerStats(matchResult);
     
     if (winner) {
@@ -120,7 +123,9 @@ function finishMatch() {
     
     resetMatch();
     switchTab('history');
+    saveMatchToFirebase(matchResult);  // Firebase save can happen after UI updates
 }
+
 
 function resetMatch() {
     currentMatch = {
@@ -232,3 +237,11 @@ function updateHistory() {
 }
 
 window.addEventListener('load', loadCurrentMatch);
+window.startMatch = startMatch;
+window.changeScore = changeScore;
+window.finishMatch = finishMatch;
+window.resetMatch = resetMatch;
+window.saveMatchToFirebase = saveMatchToFirebase; // Expose for testing
+window.updateLeaderboard = updateLeaderboard;
+window.updateHistory = updateHistory;
+window.switchTab = switchTab;
