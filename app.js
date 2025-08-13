@@ -1,5 +1,14 @@
 import { saveMatchToFirebase, getMatchesFromFirebase } from './firebase.js';
 
+// Global function exports for HTML onclick handlers - MOVE TO TOP
+window.startMatch = startMatch;
+window.changeScore = changeScore;
+window.finishMatch = finishMatch;
+window.resetMatch = resetMatch;
+window.updateLeaderboard = updateLeaderboard;
+window.updateHistory = updateHistory;
+window.switchTab = switchTab;
+
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -32,15 +41,38 @@ function setDefaultMatchTime() {
 document.addEventListener('DOMContentLoaded', function() {
     setDefaultMatchTime();
     
+    // Enhanced tab switching with haptic feedback
     document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        tab.addEventListener('click', (e) => {
+            // Add haptic feedback on mobile
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            switchTab(tab.dataset.tab);
+        });
     });
+    
+    // Add loading state
+    showLoadingState();
     
     // Load Firebase data on app start
     loadFirebaseMatches().then(() => {
+        hideLoadingState();
         updateLeaderboard();
         updateHistory();
+    }).catch(() => {
+        hideLoadingState();
     });
+    
+    // Prevent zoom on double tap for iOS
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function (event) {
+        const now = (new Date()).getTime();
+        if (now - lastTouchEnd <= 300) {
+            event.preventDefault();
+        }
+        lastTouchEnd = now;
+    }, false);
 });
 
 function switchTab(tabName) {
@@ -68,8 +100,13 @@ function startMatch() {
     const team2Player2 = document.getElementById('team2-player2').value.trim();
     
     if (!team1Player1 || !team1Player2 || !team2Player1 || !team2Player2) {
-        alert('Please enter all player names');
+        showToast('Please enter all player names', 'error');
         return;
+    }
+    
+    // Haptic feedback
+    if (navigator.vibrate) {
+        navigator.vibrate([50, 100, 50]);
     }
     
     currentMatch = {
@@ -88,21 +125,51 @@ function startMatch() {
     document.getElementById('score1').textContent = '0';
     document.getElementById('score2').textContent = '0';
     
-    document.getElementById('match-setup').style.display = 'none';
-    document.getElementById('score-display').style.display = 'block';
+    // Smooth transition
+    const setupDiv = document.getElementById('match-setup');
+    const scoreDiv = document.getElementById('score-display');
+    
+    setupDiv.style.transition = 'opacity 0.3s ease';
+    setupDiv.style.opacity = '0';
+    
+    setTimeout(() => {
+        setupDiv.style.display = 'none';
+        scoreDiv.style.display = 'block';
+        scoreDiv.style.opacity = '0';
+        scoreDiv.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => {
+            scoreDiv.style.opacity = '1';
+        }, 50);
+    }, 300);
     
     saveCurrentMatch();
+    showToast('Match started! 🎾');
 }
 
 function changeScore(team, delta) {
     currentMatch[team].score = Math.max(0, currentMatch[team].score + delta);
-    document.getElementById(team === 'team1' ? 'score1' : 'score2').textContent = currentMatch[team].score;
+    const scoreElement = document.getElementById(team === 'team1' ? 'score1' : 'score2');
+    
+    // Animate score change
+    scoreElement.style.transform = 'scale(1.2)';
+    scoreElement.style.transition = 'transform 0.2s ease';
+    
+    setTimeout(() => {
+        scoreElement.textContent = currentMatch[team].score;
+        scoreElement.style.transform = 'scale(1)';
+    }, 100);
+    
+    // Haptic feedback
+    if (navigator.vibrate) {
+        navigator.vibrate(30);
+    }
+    
     saveCurrentMatch();
 }
 
 function finishMatch() {
     if (currentMatch.team1.score === 0 && currentMatch.team2.score === 0) {
-        alert('Please record some scores before finishing the match');
+        showToast('Please record some scores before finishing', 'error');
         return;
     }
     
@@ -123,24 +190,34 @@ function finishMatch() {
     // Save to local storage as backup only
     saveMatchToHistory(matchResult);
     
-    // Show result to user
-    if (winner) {
-        alert(`🏆 ${currentMatch[winner].players.join(' & ')} wins!\nFinal Score: ${currentMatch.team1.score} - ${currentMatch.team2.score}`);
-    } else {
-        alert(`🤝 It's a draw!\nFinal Score: ${currentMatch.team1.score} - ${currentMatch.team2.score}`);
+    // Show result with better UX
+    const winnerText = winner ? `🏆 ${currentMatch[winner].players.join(' & ')} wins!` : '🤝 It\'s a draw!';
+    const scoreText = `Final Score: ${currentMatch.team1.score} - ${currentMatch.team2.score}`;
+    
+    // Haptic feedback for celebration
+    if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100, 50, 100]);
     }
     
+    showToast(winnerText + ' ' + scoreText);
+    
     resetMatch();
+    
+    // Show loading state while saving
+    showLoadingState();
     
     // Save to Firebase (primary storage) and then reload data
     saveMatchToFirebase(matchResult).then(() => {
         console.log('Match successfully saved to Firebase');
         // Reload Firebase data to ensure we have the latest matches
         loadFirebaseMatches().then(() => {
+            hideLoadingState();
             switchTab('history');
         });
     }).catch(error => {
         console.error('Failed to save match to Firebase:', error);
+        hideLoadingState();
+        showToast('Match saved locally only', 'error');
         // Still switch to history even if Firebase save failed
         switchTab('history');
     });
@@ -392,14 +469,82 @@ function updateHistory() {
     }).join('');
 }
 
-// Event Listeners
-window.addEventListener('load', loadCurrentMatch);
+// Enhanced UI functions
+function showLoadingState() {
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.style.opacity = '0.5';
+    });
+}
 
-// Global function exports for HTML onclick handlers
-window.startMatch = startMatch;
-window.changeScore = changeScore;
-window.finishMatch = finishMatch;
-window.resetMatch = resetMatch;
-window.updateLeaderboard = updateLeaderboard;
-window.updateHistory = updateHistory;
-window.switchTab = switchTab;
+function hideLoadingState() {
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.style.opacity = '1';
+    });
+}
+
+function showToast(message, type = 'success') {
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: ${type === 'success' ? '#4CAF50' : '#f44336'};
+        color: white;
+        padding: 12px 24px;
+        border-radius: 25px;
+        font-weight: 600;
+        z-index: 1000;
+        animation: slideDown 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    `;
+    
+    // Add animation keyframes
+    if (!document.querySelector('#toast-styles')) {
+        const style = document.createElement('style');
+        style.id = 'toast-styles';
+        style.textContent = `
+            @keyframes slideDown {
+                from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+                to { transform: translateX(-50%) translateY(0); opacity: 1; }
+            }
+            @keyframes slideUp {
+                from { transform: translateX(-50%) translateY(0); opacity: 1; }
+                to { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(toast);
+    
+    // Remove toast after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'slideUp 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 300);
+}
+
+// Enhanced button feedback
+function addButtonFeedback() {
+    document.querySelectorAll('.btn, .score-btn').forEach(button => {
+        button.addEventListener('touchstart', function() {
+            this.style.transform = 'scale(0.98)';
+        });
+        
+        button.addEventListener('touchend', function() {
+            setTimeout(() => {
+                this.style.transform = '';
+            }, 100);
+        });
+    });
+}
+
+// Event Listeners - FIXED: Remove duplicate and undefined buttons reference
+window.addEventListener('load', () => {
+    loadCurrentMatch();
+    addButtonFeedback();
+});

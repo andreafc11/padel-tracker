@@ -4,150 +4,247 @@
     box-sizing: border-box;
 }
 
+html {
+    /* Fix for overscroll white background */
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100%;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
     color: white;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    user-select: none; /* Prevent text selection on mobile */
+    
+    /* iOS specific fixes for overscroll */
+    -webkit-background-size: 100% 100%;
+    background-size: 100% 100%;
+    background-attachment: fixed;
+    
+    /* Prevent overscroll bounce on iOS */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Alternative approach for overscroll fix */
+body::before {
+    content: '';
+    position: fixed;
+    top: -100vh;
+    left: 0;
+    right: 0;
+    height: 300vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    z-index: -1;
 }
 
 .container {
-    max-width: 400px;
+    max-width: 420px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 16px;
     min-height: 100vh;
+    padding-bottom: 40px; /* Extra space for mobile keyboards */
+    position: relative;
+    z-index: 1;
 }
 
 .header {
     text-align: center;
-    margin-bottom: 30px;
-    padding-top: 20px;
+    margin-bottom: 24px;
+    padding-top: max(env(safe-area-inset-top), 16px); /* Respect notch */
 }
 
 .header h1 {
-    font-size: 2.5em;
-    margin-bottom: 10px;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    font-size: 2.2em;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    font-weight: 700;
 }
 
+/* Enhanced Navigation */
 .nav-tabs {
     display: flex;
-    background: rgba(255,255,255,0.1);
-    border-radius: 25px;
-    margin-bottom: 20px;
-    padding: 5px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 20px;
+    margin-bottom: 24px;
+    padding: 4px;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.2);
 }
 
 .nav-tab {
     flex: 1;
-    padding: 12px;
+    padding: 14px 8px;
     text-align: center;
-    border-radius: 20px;
+    border-radius: 16px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-weight: 600;
+    font-size: 14px;
+    position: relative;
+    tap-highlight-color: transparent; /* Remove tap highlight */
+    -webkit-tap-highlight-color: transparent;
 }
 
 .nav-tab.active {
-    background: white;
+    background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
     color: #667eea;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
 }
 
+.nav-tab:active {
+    transform: translateY(0px);
+}
+
+/* Tab Content */
 .tab-content {
     display: none;
+    animation: fadeIn 0.3s ease-in-out;
 }
 
 .tab-content.active {
     display: block;
 }
 
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Enhanced Cards */
 .match-setup, .score-display {
-    background: rgba(255,255,255,0.1);
-    border-radius: 20px;
-    padding: 25px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 24px;
+    padding: 24px;
     margin-bottom: 20px;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
 }
 
 .team-setup {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .team-setup h3 {
-    margin-bottom: 15px;
+    margin-bottom: 16px;
     text-align: center;
-    font-size: 1.2em;
+    font-size: 1.1em;
+    font-weight: 600;
+    opacity: 0.9;
 }
 
+/* Enhanced Input Styling */
 .player-inputs {
     display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
+    gap: 12px;
+    margin-bottom: 0;
 }
 
-.player-inputs input {
+.player-inputs input, .match-meta input, .match-meta textarea {
     flex: 1;
-    padding: 12px;
-    border: none;
-    border-radius: 10px;
-    font-size: 16px;
-    background: rgba(255,255,255,0.9);
+    padding: 16px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 16px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    background: rgba(255,255,255,0.95);
+    color: #333;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.player-inputs input:focus, .match-meta input:focus, .match-meta textarea:focus {
+    outline: none;
+    border-color: #4CAF50;
+    background: rgba(255,255,255,1);
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    transform: translateY(-1px);
 }
 
 .match-meta {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
 .match-meta input, .match-meta textarea {
     width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 10px;
-    font-size: 16px;
-    background: rgba(255,255,255,0.9);
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .match-meta textarea {
     resize: vertical;
-    height: 60px;
+    height: 80px;
+    font-family: inherit;
 }
 
+/* Enhanced Buttons */
 .btn {
     width: 100%;
-    padding: 15px;
+    padding: 18px;
     border: none;
-    border-radius: 15px;
-    font-size: 18px;
+    border-radius: 20px;
+    font-size: 17px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+    tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .btn-primary {
-    background: #4CAF50;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
     color: white;
+    box-shadow: 0 4px 16px rgba(76, 175, 80, 0.3);
 }
 
-.btn-primary:hover {
-    background: #45a049;
+.btn-primary:hover, .btn-primary:focus {
+    background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
     transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.btn-primary:active {
+    transform: translateY(0px);
 }
 
 .btn-secondary {
-    background: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.15);
     color: white;
     border: 2px solid rgba(255,255,255,0.3);
+    backdrop-filter: blur(10px);
 }
 
+.btn-secondary:hover, .btn-secondary:focus {
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.5);
+    transform: translateY(-2px);
+}
+
+/* Enhanced Scoring Section */
 .score-section {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 32px;
+    padding: 16px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .team-score {
@@ -156,61 +253,85 @@ body {
 }
 
 .team-name {
-    font-size: 1.1em;
-    margin-bottom: 10px;
+    font-size: 0.95em;
+    margin-bottom: 12px;
     font-weight: 600;
+    opacity: 0.9;
+    line-height: 1.3;
 }
 
 .score {
-    font-size: 3em;
-    font-weight: bold;
-    margin: 10px 0;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    font-size: 3.5em;
+    font-weight: 800;
+    margin: 16px 0;
+    text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    line-height: 1;
 }
 
 .score-buttons {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     justify-content: center;
+    margin-top: 16px;
 }
 
+/* Enhanced Score Buttons */
 .score-btn {
-    width: 50px;
-    height: 50px;
+    width: 60px;
+    height: 60px;
     border: none;
     border-radius: 50%;
-    font-size: 24px;
+    font-size: 28px;
     font-weight: bold;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     color: white;
+    position: relative;
+    tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .score-btn.plus {
-    background: #4CAF50;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
 }
 
 .score-btn.minus {
-    background: #f44336;
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
 }
 
-.score-btn:hover {
+.score-btn:hover, .score-btn:focus {
     transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+}
+
+.score-btn:active {
+    transform: scale(0.95);
 }
 
 .vs {
-    font-size: 2em;
-    font-weight: bold;
-    margin: 0 20px;
+    font-size: 1.8em;
+    font-weight: 700;
+    margin: 0 16px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    opacity: 0.8;
 }
 
+/* Enhanced List Items */
 .leaderboard-item, .history-item {
-    background: rgba(255,255,255,0.1);
-    border-radius: 15px;
-    padding: 15px;
-    margin-bottom: 10px;
-    backdrop-filter: blur(10px);
+    background: rgba(255,255,255,0.12);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.15);
+    transition: all 0.3s ease;
+}
+
+.leaderboard-item:hover, .history-item:hover {
+    background: rgba(255,255,255,0.18);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
 }
 
 .leaderboard-item {
@@ -221,7 +342,7 @@ body {
 
 .player-stats {
     display: flex;
-    gap: 15px;
+    gap: 20px;
 }
 
 .stat {
@@ -229,13 +350,15 @@ body {
 }
 
 .stat-value {
-    font-size: 1.5em;
+    font-size: 1.6em;
     font-weight: bold;
+    line-height: 1;
 }
 
 .stat-label {
     font-size: 0.8em;
     opacity: 0.8;
+    margin-top: 4px;
 }
 
 .history-item {
@@ -246,21 +369,31 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .match-teams {
     font-weight: 600;
+    font-size: 1.05em;
 }
 
 .match-score {
-    font-size: 1.2em;
+    font-size: 1.3em;
     font-weight: bold;
 }
 
 .match-details {
     font-size: 0.9em;
-    opacity: 0.8;
+    opacity: 0.85;
+    line-height: 1.4;
+}
+
+.match-details > div {
+    margin-bottom: 4px;
+}
+
+.match-details > div:last-child {
+    margin-bottom: 0;
 }
 
 .winner {
@@ -268,28 +401,98 @@ body {
     font-weight: bold;
 }
 
+/* Enhanced Empty States */
 .empty-state {
     text-align: center;
-    padding: 40px 20px;
+    padding: 60px 20px;
     opacity: 0.7;
 }
 
 .empty-state-icon {
-    font-size: 3em;
-    margin-bottom: 20px;
+    font-size: 4em;
+    margin-bottom: 24px;
+    opacity: 0.5;
 }
 
+.empty-state h3 {
+    font-size: 1.4em;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.empty-state p {
+    font-size: 1em;
+    opacity: 0.8;
+    line-height: 1.5;
+}
+
+/* Mobile Optimizations */
 @media (max-width: 480px) {
     .container {
-        padding: 15px;
+        padding: 12px;
     }
     
+    .score {
+        font-size: 3em;
+    }
+    
+    .vs {
+        font-size: 1.5em;
+        margin: 0 12px;
+    }
+    
+    .score-btn {
+        width: 56px;
+        height: 56px;
+        font-size: 24px;
+    }
+    
+    .player-stats {
+        gap: 16px;
+    }
+    
+    .match-setup, .score-display {
+        padding: 20px;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 360px) {
     .score {
         font-size: 2.5em;
     }
     
     .vs {
-        font-size: 1.5em;
-        margin: 0 10px;
+        font-size: 1.3em;
+        margin: 0 8px;
+    }
+    
+    .score-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 22px;
+    }
+    
+    .player-stats {
+        gap: 12px;
+    }
+}
+
+/* Loading animation for better perceived performance */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Additional iOS-specific fixes */
+@supports (-webkit-touch-callout: none) {
+    body {
+        /* iOS Safari specific overscroll fix */
+        overscroll-behavior: none;
+        -webkit-overscroll-behavior: none;
     }
 }
