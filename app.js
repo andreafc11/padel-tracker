@@ -1,4 +1,4 @@
-import { saveMatchToFirebase } from './firebase.js';
+import { saveMatchToFirebase, getMatchesFromFirebase } from './firebase.js';
 
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
@@ -36,8 +36,11 @@ document.addEventListener('DOMContentLoaded', function() {
         tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
     
-    updateLeaderboard();
-    updateHistory();
+    // Load Firebase data on app start
+    loadFirebaseMatches().then(() => {
+        updateLeaderboard();
+        updateHistory();
+    });
 });
 
 function switchTab(tabName) {
@@ -47,8 +50,14 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(`${tabName}-tab`).classList.add('active');
     
-    if (tabName === 'leaderboard') updateLeaderboard();
-    else if (tabName === 'history') updateHistory();
+    if (tabName === 'leaderboard') {
+        updateLeaderboard();
+    } else if (tabName === 'history') {
+        // Reload Firebase data when viewing history to get latest matches
+        loadFirebaseMatches().then(() => {
+            updateHistory();
+        });
+    }
 }
 
 // Match Management
@@ -111,10 +120,10 @@ function finishMatch() {
         id: Date.now()
     };
     
-    saveMatchToHistory(matchResult);  // save to localStorage once
+    // Save to local storage as backup only
+    saveMatchToHistory(matchResult);
     
-    if (winner) updatePlayerStats(matchResult);
-    
+    // Show result to user
     if (winner) {
         alert(`🏆 ${currentMatch[winner].players.join(' & ')} wins!\nFinal Score: ${currentMatch.team1.score} - ${currentMatch.team2.score}`);
     } else {
@@ -122,10 +131,20 @@ function finishMatch() {
     }
     
     resetMatch();
-    switchTab('history');
-    saveMatchToFirebase(matchResult);  // Firebase save can happen after UI updates
+    
+    // Save to Firebase (primary storage) and then reload data
+    saveMatchToFirebase(matchResult).then(() => {
+        console.log('Match successfully saved to Firebase');
+        // Reload Firebase data to ensure we have the latest matches
+        loadFirebaseMatches().then(() => {
+            switchTab('history');
+        });
+    }).catch(error => {
+        console.error('Failed to save match to Firebase:', error);
+        // Still switch to history even if Firebase save failed
+        switchTab('history');
+    });
 }
-
 
 function resetMatch() {
     currentMatch = {
@@ -185,63 +204,202 @@ function saveMatchToHistory(match) {
 function updatePlayerStats(match) {
     let stats = JSON.parse(localStorage.getItem('playerStats') || '{}');
     const allPlayers = [...match.team1.players, ...match.team2.players];
+    
+    // Initialize stats for new players
     allPlayers.forEach(player => {
-        if (!stats[player]) stats[player] = { wins: 0, losses: 0, totalMatches: 0 };
+        if (!stats[player]) {
+            stats[player] = { wins: 0, losses: 0, draws: 0, totalMatches: 0 };
+        }
         stats[player].totalMatches++;
     });
-    const winners = match[match.winner]?.players || [];
-    const losers = match[match.winner === 'team1' ? 'team2' : 'team1']?.players || [];
-    winners.forEach(player => stats[player].wins++);
-    losers.forEach(player => stats[player].losses++);
+    
+    // Update win/loss/draw stats
+    if (match.winner) {
+        const winners = match[match.winner].players;
+        const losers = match[match.winner === 'team1' ? 'team2' : 'team1'].players;
+        
+        winners.forEach(player => stats[player].wins++);
+        losers.forEach(player => stats[player].losses++);
+    } else {
+        // It's a draw
+        allPlayers.forEach(player => stats[player].draws++);
+    }
+    
     localStorage.setItem('playerStats', JSON.stringify(stats));
+}
+
+// Firebase Integration - Primary data source
+let firebaseMatches = [];
+
+async function loadFirebaseMatches() {
+    try {
+        console.log('Loading matches from Firebase...');
+        firebaseMatches = await getMatchesFromFirebase();
+        console.log(`Loaded ${firebaseMatches.length} matches from Firebase`);
+        
+        // Recalculate all player stats from Firebase data
+        recalculatePlayerStatsFromFirebase();
+        
+        // Update UI if we're on history or stats tabs
+        const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
+        if (activeTab === 'history') {
+            updateHistory();
+        } else if (activeTab === 'leaderboard') {
+            updateLeaderboard();
+        }
+        
+        return firebaseMatches;
+    } catch (error) {
+        console.error('Failed to load Firebase matches:', error);
+        // Fallback to local storage only if Firebase fails
+        const localHistory = JSON.parse(localStorage.getItem('matchHistory') || '[]');
+        firebaseMatches = localHistory;
+        return localHistory;
+    }
+}
+
+function recalculatePlayerStatsFromFirebase() {
+    // Clear existing stats and recalculate from Firebase matches
+    const stats = {};
+    
+    firebaseMatches.forEach(match => {
+        const allPlayers = [...match.team1.players, ...match.team2.players];
+        
+        // Initialize stats for new players
+        allPlayers.forEach(player => {
+            if (!stats[player]) {
+                stats[player] = { wins: 0, losses: 0, draws: 0, totalMatches: 0 };
+            }
+            stats[player].totalMatches++;
+        });
+        
+        // Update win/loss/draw stats
+        if (match.winner) {
+            const winners = match[match.winner].players;
+            const losers = match[match.winner === 'team1' ? 'team2' : 'team1'].players;
+            
+            winners.forEach(player => stats[player].wins++);
+            losers.forEach(player => stats[player].losses++);
+        } else {
+            // It's a draw
+            allPlayers.forEach(player => stats[player].draws++);
+        }
+    });
+    
+    localStorage.setItem('playerStats', JSON.stringify(stats));
+    console.log('Player stats recalculated from Firebase data');
 }
 
 // UI Updates
 function updateLeaderboard() {
     const stats = JSON.parse(localStorage.getItem('playerStats') || '{}');
     const leaderboardContent = document.getElementById('leaderboard-content');
+    
     if (Object.keys(stats).length === 0) {
-        leaderboardContent.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div><h3>No stats yet</h3><p>Play some matches to see player statistics</p></div>`;
+        leaderboardContent.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📊</div>
+                <h3>No stats yet</h3>
+                <p>Play some matches to see player statistics</p>
+            </div>`;
         return;
     }
+    
     const sortedPlayers = Object.entries(stats).sort((a, b) => {
         const winRateA = a[1].totalMatches > 0 ? a[1].wins / a[1].totalMatches : 0;
         const winRateB = b[1].totalMatches > 0 ? b[1].wins / b[1].totalMatches : 0;
         if (winRateB !== winRateA) return winRateB - winRateA;
         return b[1].wins - a[1].wins;
     });
+    
     leaderboardContent.innerHTML = sortedPlayers.map(([player, playerStats]) => {
         const winRate = playerStats.totalMatches > 0 
             ? Math.round((playerStats.wins / playerStats.totalMatches) * 100)
             : 0;
-        return `<div class="leaderboard-item"><div><div style="font-weight: 600; font-size: 1.1em;">${player}</div><div style="opacity: 0.8;">Win Rate: ${winRate}%</div></div><div class="player-stats"><div class="stat"><div class="stat-value">${playerStats.wins}</div><div class="stat-label">Wins</div></div><div class="stat"><div class="stat-value">${playerStats.losses}</div><div class="stat-label">Losses</div></div><div class="stat"><div class="stat-value">${playerStats.totalMatches}</div><div class="stat-label">Total</div></div></div></div>`;
+            
+        return `
+            <div class="leaderboard-item">
+                <div>
+                    <div style="font-weight: 600; font-size: 1.1em;">${player}</div>
+                    <div style="opacity: 0.8;">Win Rate: ${winRate}%</div>
+                </div>
+                <div class="player-stats">
+                    <div class="stat">
+                        <div class="stat-value">${playerStats.wins}</div>
+                        <div class="stat-label">Wins</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${playerStats.losses}</div>
+                        <div class="stat-label">Losses</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${playerStats.draws || 0}</div>
+                        <div class="stat-label">Draws</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${playerStats.totalMatches}</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                </div>
+            </div>`;
     }).join('');
 }
 
 function updateHistory() {
-    const history = JSON.parse(localStorage.getItem('matchHistory') || '[]');
     const historyContent = document.getElementById('history-content');
-    if (history.length === 0) {
-        historyContent.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📅</div><h3>No matches yet</h3><p>Your match history will appear here</p></div>`;
+    
+    // Use Firebase matches as primary data source
+    const matches = firebaseMatches.length > 0 ? firebaseMatches : JSON.parse(localStorage.getItem('matchHistory') || '[]');
+    
+    if (matches.length === 0) {
+        historyContent.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📅</div>
+                <h3>No matches yet</h3>
+                <p>Your match history will appear here</p>
+            </div>`;
         return;
     }
-    historyContent.innerHTML = history.map(match => {
-        const matchDate = new Date(match.metadata.time || match.startTime);
+    
+    // Sort matches by date (newest first)
+    const sortedMatches = matches.sort((a, b) => {
+        const dateA = new Date(a.metadata?.time || a.startTime || a.endTime || 0);
+        const dateB = new Date(b.metadata?.time || b.startTime || b.endTime || 0);
+        return dateB - dateA;
+    });
+    
+    historyContent.innerHTML = sortedMatches.map(match => {
+        const matchDate = new Date(match.metadata?.time || match.startTime || match.endTime);
         const dateStr = matchDate.toLocaleDateString();
         const timeStr = matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const team1Name = match.team1.players.join(' & ');
         const team2Name = match.team2.players.join(' & ');
         const winnerName = match.winner ? match[match.winner].players.join(' & ') : 'Draw';
-        return `<div class="history-item"><div class="match-info"><div class="match-teams">${team1Name} vs ${team2Name}</div><div class="match-score">${match.team1.score} - ${match.team2.score}</div></div><div class="match-details"><div class="winner">${match.winner ? '🏆 ' + winnerName : '🤝 Draw'}</div><div>${dateStr} at ${timeStr}</div>${match.metadata.location ? `<div>📍 ${match.metadata.location}</div>` : ''}${match.metadata.notes ? `<div>📝 ${match.metadata.notes}</div>` : ''}</div></div>`;
+        
+        return `
+            <div class="history-item">
+                <div class="match-info">
+                    <div class="match-teams">${team1Name} vs ${team2Name}</div>
+                    <div class="match-score">${match.team1.score} - ${match.team2.score}</div>
+                </div>
+                <div class="match-details">
+                    <div class="winner">${match.winner ? '🏆 ' + winnerName : '🤝 Draw'}</div>
+                    <div>${dateStr} at ${timeStr}</div>
+                    ${match.metadata?.location ? `<div>📍 ${match.metadata.location}</div>` : ''}
+                    ${match.metadata?.notes ? `<div>📝 ${match.metadata.notes}</div>` : ''}
+                </div>
+            </div>`;
     }).join('');
 }
 
+// Event Listeners
 window.addEventListener('load', loadCurrentMatch);
+
+// Global function exports for HTML onclick handlers
 window.startMatch = startMatch;
 window.changeScore = changeScore;
 window.finishMatch = finishMatch;
 window.resetMatch = resetMatch;
-window.saveMatchToFirebase = saveMatchToFirebase; // Expose for testing
 window.updateLeaderboard = updateLeaderboard;
 window.updateHistory = updateHistory;
 window.switchTab = switchTab;

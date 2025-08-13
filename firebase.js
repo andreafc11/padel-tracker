@@ -1,6 +1,7 @@
 // firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { getDocs } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDGL8IZxxfV3xKS1rebB-4k4NSDLAGg8r0",
@@ -24,5 +25,23 @@ export async function saveMatchToFirebase(match) {
     console.log("Match saved to Firebase!");
   } catch (error) {
     console.error("Error saving match to Firebase:", error);
+  }
+}
+
+
+
+// Fetch all matches from Firestore
+export async function getMatchesFromFirebase() {
+  try {
+    const querySnapshot = await getDocs(collection(db, "matches"));
+    const matches = [];
+    querySnapshot.forEach((doc) => {
+      matches.push({ id: doc.id, ...doc.data() });
+    });
+    console.log("Fetched matches:", matches);
+    return matches;
+  } catch (error) {
+    console.error("Error fetching matches:", error);
+    return [];
   }
 }
