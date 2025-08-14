@@ -5,9 +5,10 @@
 }
 
 html {
-    /* Fix for overscroll white background */
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100%;
+    /* Prevent overscroll bounce/glow effects that show white background */
+    overscroll-behavior: none;
+    /* Set a solid fallback color that matches the gradient */
+    background-color: #667eea;
 }
 
 body {
@@ -17,33 +18,18 @@ body {
     color: white;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
-    user-select: none; /* Prevent text selection on mobile */
-    
-    /* iOS specific fixes for overscroll */
-    -webkit-background-size: 100% 100%;
-    background-size: 100% 100%;
-    background-attachment: fixed;
-    
-    /* Prevent overscroll bounce on iOS */
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    /* Prevent overscroll on the body as well */
+    overscroll-behavior-y: none;
+    /* Removed user-select: none to fix scrolling issues */
+    /* Instead, apply it selectively to specific elements that shouldn't be selectable */
 }
 
-/* Alternative approach for overscroll fix */
-body::before {
-    content: '';
-    position: fixed;
-    top: -100vh;
-    left: 0;
-    right: 0;
-    height: 300vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    z-index: -1;
+/* Apply user-select: none only to specific UI elements that shouldn't be selectable */
+.nav-tab, .btn, .score-btn, .header h1 {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .container {
@@ -52,8 +38,9 @@ body::before {
     padding: 16px;
     min-height: 100vh;
     padding-bottom: 40px; /* Extra space for mobile keyboards */
-    position: relative;
-    z-index: 1;
+    /* Ensure scrolling is explicitly enabled */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .header {
@@ -90,7 +77,6 @@ body::before {
     font-weight: 600;
     font-size: 14px;
     position: relative;
-    tap-highlight-color: transparent; /* Remove tap highlight */
     -webkit-tap-highlight-color: transparent;
 }
 
@@ -154,6 +140,22 @@ body::before {
     margin-bottom: 0;
 }
 
+/* Stack player inputs vertically on smaller screens for better usability */
+@media (max-width: 600px) {
+    .player-inputs {
+        flex-direction: column;
+        gap: 16px;
+    }
+}
+
+/* Additional breakpoint for very narrow desktop windows */
+@media (max-width: 500px) {
+    .player-inputs {
+        flex-direction: column;
+        gap: 12px;
+    }
+}
+
 .player-inputs input, .match-meta input, .match-meta textarea {
     flex: 1;
     padding: 16px;
@@ -202,7 +204,6 @@ body::before {
     margin-bottom: 12px;
     position: relative;
     overflow: hidden;
-    tap-highlight-color: transparent;
     -webkit-tap-highlight-color: transparent;
 }
 
@@ -287,7 +288,6 @@ body::before {
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     color: white;
     position: relative;
-    tap-highlight-color: transparent;
     -webkit-tap-highlight-color: transparent;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
@@ -486,13 +486,4 @@ body::before {
 
 .loading {
     animation: pulse 1.5s ease-in-out infinite;
-}
-
-/* Additional iOS-specific fixes */
-@supports (-webkit-touch-callout: none) {
-    body {
-        /* iOS Safari specific overscroll fix */
-        overscroll-behavior: none;
-        -webkit-overscroll-behavior: none;
-    }
 }
